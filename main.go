@@ -1,20 +1,19 @@
 package main
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"github.com/caarlos0/env/v10"
-	"io"
-	"io/ioutil"
+	"github.com/ipqwery/ipapi-go"
 	"log/slog"
-	"net"
-	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 )
 
-type environment struct {
+type Config struct {
 	Debug    bool     `env:"DEBUG" envDefault:"false"`
 	Password string   `env:"STRATO_PASSWORD,required"`
 	Domains  []string `env:"DOMAINS,required" envSeparator:","`
@@ -25,10 +24,10 @@ const (
 )
 
 var (
-	config        environment
-	logger        *slog.Logger
-	status        map[string]bool
-	publicAddress string
+	config Config
+	logger *slog.Logger
+	status map[string]bool
+	sc     *StratoDynDnsClient
 )
 
 func init() {
@@ -51,7 +50,20 @@ func init() {
 }
 
 func main() {
-	slog.Info("started strato dyndns updater")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	slog.Info("starting strato dyndns updater")
+
+	go func() {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+		<-sigChan
+
+		logger.Warn("termination signal received, shutting down gracefully...")
+		cancel()
+	}()
 
 	status = make(map[string]bool)
 	for _, domain := range config.Domains {
@@ -59,107 +71,49 @@ func main() {
 	}
 
 	interval := time.Duration(5) * time.Minute
+	first := time.After(0)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
+	sc = NewStratoDynDnsClient()
+
 	for {
-		slog.Debug("querying ifconfig.me")
-
-		newAddress, err := getPublicIpAddress()
-		if err != nil {
-			slog.Error(fmt.Sprintf("querying ifconfig.me failed: %s", err))
+		select {
+		case <-first:
+			updateRecordSets(ctx)
+		case <-ticker.C:
+			updateRecordSets(ctx)
+		case <-ctx.Done():
+			slog.Info(fmt.Sprintf("stopped strato dyndns updater"))
+			return
 		}
-		slog.Debug(fmt.Sprintf("public ip address is: %s", newAddress))
-
-		for _, domain := range config.Domains {
-			trimmedDomain := strings.TrimSpace(domain)
-			if status[domain] == false {
-				err := updateDynDnsAddress(newAddress, trimmedDomain)
-				if err != nil {
-					slog.Error(fmt.Sprintf("updating strato dyndns failed: %s", err), "domain", trimmedDomain)
-					continue
-				}
-
-				slog.Info("updated strato dyndns", "domain", trimmedDomain, "skip", publicAddress == newAddress && !status[domain])
-				status[domain] = true
-
-				continue
-			}
-
-			if publicAddress == newAddress {
-				slog.Info("updating strato dyndns", "domain", trimmedDomain, "skip", publicAddress == newAddress && status[domain])
-				continue
-			}
-
-			err := updateDynDnsAddress(newAddress, trimmedDomain)
-			if err != nil {
-				slog.Error(fmt.Sprintf("updating strato dyndns failed: %s", err), "domain", trimmedDomain)
-				continue
-			}
-
-			slog.Info("updated strato dyndns", "domain", trimmedDomain, "skip", publicAddress == newAddress && status[domain])
-			status[domain] = true
-		}
-
-		publicAddress = newAddress
-		<-ticker.C
 	}
 }
 
-func getPublicIpAddress() (string, error) {
-	resp, err := http.Get("https://ifconfig.me/ip")
+func updateRecordSets(ctx context.Context) {
+	ip, err := ipapi.QueryOwnIP()
 	if err != nil {
-		return "", err
+		slog.Error("retrieving own ip address failed: " + err.Error())
+		return
 	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
+
+	slog.Info("retrieved ip address", "ip", ip)
+
+	for _, domain := range config.Domains {
+		trimmedDomain := strings.TrimSpace(domain)
+
+		if status[domain] == true {
+			slog.Info("updating dyndns records skipped", "domain", trimmedDomain)
+			continue
 		}
-	}(resp.Body)
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
+		slog.Info("updating dyndns records", "domain", trimmedDomain)
+
+		err := sc.UpdateRecords(ctx, trimmedDomain, ip, config.Password)
+		if err != nil {
+			slog.Error(fmt.Sprintf("updating dyndns records failed: %s", err.Error()), "domain", trimmedDomain)
+		}
+
+		status[domain] = true
 	}
-
-	ipAddress := strings.TrimSpace(string(body))
-	if ipAddress == "" || net.ParseIP(ipAddress) == nil {
-		return "", errors.New("no valid ip address found")
-	}
-
-	return ipAddress, nil
-}
-
-func updateDynDnsAddress(ipAddress string, domain string) error {
-	url := fmt.Sprintf(
-		"https://%s:%s@dyndns.strato.com/nic/update?hostname=%s&myip=%s",
-		domain,
-		config.Password,
-		domain,
-		ipAddress,
-	)
-	method := "GET"
-	httpClient := &http.Client{}
-
-	request, err := http.NewRequest(method, url, nil)
-	if err != nil {
-		return err
-	}
-
-	response, err := httpClient.Do(request)
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-
-	body, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return err
-	}
-
-	if !strings.Contains(string(body), "good") && !strings.Contains(string(body), "nochg") {
-		return errors.New(string(body))
-	}
-
-	return nil
 }
