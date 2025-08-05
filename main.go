@@ -24,10 +24,11 @@ const (
 )
 
 var (
-	config Config
-	logger *slog.Logger
-	status map[string]bool
-	sc     *StratoDynDnsClient
+	config      Config
+	logger      *slog.Logger
+	status      map[string]string
+	sc          *StratoDynDnsClient
+	lastKnownIp string
 )
 
 func init() {
@@ -61,13 +62,13 @@ func main() {
 
 		<-sigChan
 
-		logger.Warn("termination signal received, shutting down gracefully...")
+		slog.Warn("termination signal received, shutting down gracefully...")
 		cancel()
 	}()
 
-	status = make(map[string]bool)
+	status = make(map[string]string)
 	for _, domain := range config.Domains {
-		status[domain] = false
+		status[domain] = ""
 	}
 
 	interval := time.Duration(5) * time.Minute
@@ -97,12 +98,16 @@ func updateRecordSets(ctx context.Context) {
 		return
 	}
 
-	slog.Info("retrieved ip address", "ip", ip)
+	if lastKnownIp == ip {
+		slog.Info("no changes in ip address", "ip", ip)
+		return
+	}
+
+	slog.Info("retrieved new ip address", "ip", ip)
 
 	for _, domain := range config.Domains {
 		trimmedDomain := strings.TrimSpace(domain)
-
-		if status[domain] == true {
+		if status[domain] == ip {
 			slog.Info("updating dyndns records skipped", "domain", trimmedDomain)
 			continue
 		}
@@ -114,6 +119,8 @@ func updateRecordSets(ctx context.Context) {
 			slog.Error(fmt.Sprintf("updating dyndns records failed: %s", err.Error()), "domain", trimmedDomain)
 		}
 
-		status[domain] = true
+		status[domain] = ip
 	}
+
+	lastKnownIp = ip
 }

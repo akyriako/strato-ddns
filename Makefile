@@ -1,7 +1,7 @@
 # Configuration variables
 REGISTRY ?= $(shell docker info | sed '/Username:/!d;s/.* //')
 IMAGE_NAME ?= strato-go-dyndns
-TAG ?= 0.2.0
+TAG ?= 0.2.2
 DOCKERFILE ?= Dockerfile
 
 # Build binary
