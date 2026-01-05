@@ -3,14 +3,17 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/caarlos0/env/v10"
-	"github.com/ipqwery/ipapi-go"
+	"net/http"
+
 	"log/slog"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	ifconfigme "github.com/akyriako/go-ifconfig-me"
+	"github.com/caarlos0/env/v10"
 )
 
 type Config struct {
@@ -29,6 +32,7 @@ var (
 	status      map[string]string
 	sc          *StratoDynDnsClient
 	lastKnownIp string
+	client      *ifconfigme.Client
 )
 
 func init() {
@@ -37,6 +41,11 @@ func init() {
 		slog.Error(fmt.Sprintf("parsing env variables failed: %s", err.Error()))
 		os.Exit(exitCodeConfigurationError)
 	}
+
+	client = ifconfigme.NewClient(
+		ifconfigme.WithTimeout(350*time.Millisecond),
+		ifconfigme.WithTransport(&http.Transport{}),
+	)
 
 	levelInfo := slog.LevelInfo
 	if config.Debug {
@@ -92,7 +101,7 @@ func main() {
 }
 
 func updateRecordSets(ctx context.Context) {
-	ip, err := ipapi.QueryOwnIP()
+	ip, err := client.Get()
 	if err != nil {
 		slog.Error("retrieving own ip address failed: " + err.Error())
 		return
