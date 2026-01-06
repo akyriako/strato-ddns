@@ -3,10 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
-	"net"
-	"net/http"
-
 	"log/slog"
 	"os"
 	"os/signal"
@@ -14,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	ipq "github.com/akyriako/ipquery-go"
 	"github.com/caarlos0/env/v10"
 )
 
@@ -36,7 +33,7 @@ var (
 	status      map[string]string
 	sc          *StratoDynDnsClient
 	lastKnownIp string
-	httpClient  *http.Client
+	ipqc        *ipq.Client
 )
 
 func init() {
@@ -46,8 +43,10 @@ func init() {
 		os.Exit(exitCodeConfigurationError)
 	}
 
-	httpClient = &http.Client{
-		Timeout: time.Millisecond * 500,
+	ipqc, err = ipq.NewClient(config.IPQueryURL, config.IPQueryUser, config.IPQueryPassword)
+	if err != nil {
+		slog.Error(fmt.Sprintf("initializing ipquery client failed: %s", err.Error()))
+		os.Exit(exitCodeConfigurationError)
 	}
 
 	levelInfo := slog.LevelInfo
@@ -104,7 +103,7 @@ func main() {
 }
 
 func updateRecordSets(ctx context.Context) {
-	ip, err := getOwnIP()
+	ip, err := ipqc.GetOwnIP()
 	if err != nil {
 		slog.Error("retrieving own ip address failed: " + err.Error())
 		return
@@ -135,44 +134,4 @@ func updateRecordSets(ctx context.Context) {
 	}
 
 	lastKnownIp = ip
-}
-
-func getOwnIP() (string, error) {
-	req, err := http.NewRequest(http.MethodGet, config.IPQueryURL, nil)
-	if err != nil {
-		return "", err
-	}
-
-	req.SetBasicAuth(
-		config.IPQueryUser,
-		config.IPQueryPassword,
-	)
-	req.Header.Set("Content-Type", "application/text")
-
-	httpResponse, err := httpClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer httpResponse.Body.Close()
-
-	if httpResponse.StatusCode != 200 {
-		return "", fmt.Errorf("http status %d", httpResponse.StatusCode)
-	}
-
-	httpBody, err := io.ReadAll(httpResponse.Body)
-	if err != nil {
-		return "", err
-	}
-
-	ipStr := string(httpBody)
-	ip := net.ParseIP(strings.TrimSpace(ipStr))
-	if ip == nil {
-		return "", fmt.Errorf("failed to parse ip address")
-	}
-	// Normalize IPv4-in-IPv6 form
-	if v4 := ip.To4(); v4 != nil {
-		return v4.String(), nil
-	}
-
-	return ipStr, nil
 }
