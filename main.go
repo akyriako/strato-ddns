@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 
 	"log/slog"
@@ -12,14 +14,16 @@ import (
 	"syscall"
 	"time"
 
-	ifconfigme "github.com/akyriako/go-ifconfig-me"
 	"github.com/caarlos0/env/v10"
 )
 
 type Config struct {
-	Debug    bool     `env:"DEBUG" envDefault:"false"`
-	Password string   `env:"STRATO_PASSWORD,required"`
-	Domains  []string `env:"DOMAINS,required" envSeparator:","`
+	Debug           bool     `env:"DEBUG" envDefault:"false"`
+	Password        string   `env:"STRATO_PASSWORD,required"`
+	Domains         []string `env:"DOMAINS,required" envSeparator:","`
+	IPQueryUser     string   `env:"IP_QUERY_USER,required"`
+	IPQueryPassword string   `env:"IP_QUERY_PASSWORD,required"`
+	IPQueryURL      string   `env:"IP_QUERY_URL,required"`
 }
 
 const (
@@ -32,7 +36,7 @@ var (
 	status      map[string]string
 	sc          *StratoDynDnsClient
 	lastKnownIp string
-	client      *ifconfigme.Client
+	httpClient  *http.Client
 )
 
 func init() {
@@ -42,10 +46,9 @@ func init() {
 		os.Exit(exitCodeConfigurationError)
 	}
 
-	client = ifconfigme.NewClient(
-		ifconfigme.WithTimeout(350*time.Millisecond),
-		ifconfigme.WithTransport(&http.Transport{}),
-	)
+	httpClient = &http.Client{
+		Timeout: time.Millisecond * 500,
+	}
 
 	levelInfo := slog.LevelInfo
 	if config.Debug {
@@ -101,7 +104,7 @@ func main() {
 }
 
 func updateRecordSets(ctx context.Context) {
-	ip, err := client.Get()
+	ip, err := getOwnIP()
 	if err != nil {
 		slog.Error("retrieving own ip address failed: " + err.Error())
 		return
@@ -132,4 +135,44 @@ func updateRecordSets(ctx context.Context) {
 	}
 
 	lastKnownIp = ip
+}
+
+func getOwnIP() (string, error) {
+	req, err := http.NewRequest(http.MethodGet, config.IPQueryURL, nil)
+	if err != nil {
+		return "", err
+	}
+
+	req.SetBasicAuth(
+		config.IPQueryUser,
+		config.IPQueryPassword,
+	)
+	req.Header.Set("Content-Type", "application/text")
+
+	httpResponse, err := httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer httpResponse.Body.Close()
+
+	if httpResponse.StatusCode != 200 {
+		return "", fmt.Errorf("http status %d", httpResponse.StatusCode)
+	}
+
+	httpBody, err := io.ReadAll(httpResponse.Body)
+	if err != nil {
+		return "", err
+	}
+
+	ipStr := string(httpBody)
+	ip := net.ParseIP(strings.TrimSpace(ipStr))
+	if ip == nil {
+		return "", fmt.Errorf("failed to parse ip address")
+	}
+	// Normalize IPv4-in-IPv6 form
+	if v4 := ip.To4(); v4 != nil {
+		return v4.String(), nil
+	}
+
+	return ipStr, nil
 }
