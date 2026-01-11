@@ -1,4 +1,4 @@
-github.com/akyriako/ipquery-go v0.0.0-20260106065142-edb953f3afc4 h1:NlfBmra5X04+CbgWaE2StBADUZBdZYJQ5nOduVfVsN4=
-github.com/akyriako/ipquery-go v0.0.0-20260106065142-edb953f3afc4/go.mod h1:p5TIj8wwVZJGoGB6RP2Q1lcE9G3jchVf2XhhUUqC1xg=
+github.com/akyriako/ipquery-go v0.0.0-20260111074816-0621c0bcccb2 h1:q4hSDCeV19LrQfmed8oNJMDdxqrpZgQRSalRd7lyKf8=
+github.com/akyriako/ipquery-go v0.0.0-20260111074816-0621c0bcccb2/go.mod h1:p5TIj8wwVZJGoGB6RP2Q1lcE9G3jchVf2XhhUUqC1xg=
 github.com/caarlos0/env/v10 v10.0.0 h1:yIHUBZGsyqCnpTkbjk8asUlx6RFhhEs+h7TOBdgdzXA=
 github.com/caarlos0/env/v10 v10.0.0/go.mod h1:ZfulV76NvVPw3tm591U4SwL3Xx9ldzBP9aGxzeN7G18=

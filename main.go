@@ -103,18 +103,18 @@ func main() {
 }
 
 func updateRecordSets(ctx context.Context) {
-	ip, err := ipqc.GetOwnIP()
+	ip, provider, err := ipqc.GetOwnIP()
 	if err != nil {
 		slog.Error("retrieving own ip address failed: " + err.Error())
 		return
 	}
 
 	if lastKnownIp == ip {
-		slog.Info("no changes in ip address", "ip", ip)
+		slog.Info("no change in ip address", "ip", ip, "provider", provider)
 		return
 	}
 
-	slog.Info("retrieved new ip address", "ip", ip)
+	slog.Info("retrieved new ip address", "ip", ip, "provider", provider)
 
 	for _, domain := range config.Domains {
 		trimmedDomain := strings.TrimSpace(domain)
