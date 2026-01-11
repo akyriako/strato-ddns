@@ -15,12 +15,13 @@ import (
 )
 
 type Config struct {
-	Debug           bool     `env:"DEBUG" envDefault:"false"`
-	Password        string   `env:"STRATO_PASSWORD,required"`
-	Domains         []string `env:"DOMAINS,required" envSeparator:","`
-	IPQueryUser     string   `env:"IP_QUERY_USER,required"`
-	IPQueryPassword string   `env:"IP_QUERY_PASSWORD,required"`
-	IPQueryURL      string   `env:"IP_QUERY_URL,required"`
+	Debug           bool          `env:"DEBUG" envDefault:"false"`
+	Password        string        `env:"STRATO_PASSWORD,required"`
+	Domains         []string      `env:"DOMAINS,required" envSeparator:","`
+	IPQueryUser     string        `env:"IP_QUERY_USER,required"`
+	IPQueryPassword string        `env:"IP_QUERY_PASSWORD,required"`
+	IPQueryURL      string        `env:"IP_QUERY_URL,required"`
+	Timeout         time.Duration `env:"TIMEOUT" envDefault:"500"`
 }
 
 const (
@@ -43,7 +44,7 @@ func init() {
 		os.Exit(exitCodeConfigurationError)
 	}
 
-	ipqc, err = ipq.NewClient(config.IPQueryURL, config.IPQueryUser, config.IPQueryPassword)
+	ipqc, err = ipq.NewClient(config.IPQueryURL, config.IPQueryUser, config.IPQueryPassword, &config.Timeout)
 	if err != nil {
 		slog.Error(fmt.Sprintf("initializing ipquery client failed: %s", err.Error()))
 		os.Exit(exitCodeConfigurationError)
