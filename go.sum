@@ -2,5 +2,7 @@ github.com/akyriako/ipquery-go v0.0.0-20260111074816-0621c0bcccb2 h1:q4hSDCeV19L
 github.com/akyriako/ipquery-go v0.0.0-20260111074816-0621c0bcccb2/go.mod h1:p5TIj8wwVZJGoGB6RP2Q1lcE9G3jchVf2XhhUUqC1xg=
 github.com/akyriako/ipquery-go v0.0.0-20260111091817-2d19db41bd39 h1:DYcDhO0OYr5zOlFQJMwMmSytJrx+0O+Uz+1PUvFm/D8=
 github.com/akyriako/ipquery-go v0.0.0-20260111091817-2d19db41bd39/go.mod h1:p5TIj8wwVZJGoGB6RP2Q1lcE9G3jchVf2XhhUUqC1xg=
+github.com/akyriako/ipquery-go v0.0.0-20260111123909-8427da9f2b6a h1:CWVbYIKbdOfcqFFsp8wDPZlSqiSWTCtWLoX31EKGsyM=
+github.com/akyriako/ipquery-go v0.0.0-20260111123909-8427da9f2b6a/go.mod h1:p5TIj8wwVZJGoGB6RP2Q1lcE9G3jchVf2XhhUUqC1xg=
 github.com/caarlos0/env/v10 v10.0.0 h1:yIHUBZGsyqCnpTkbjk8asUlx6RFhhEs+h7TOBdgdzXA=
 github.com/caarlos0/env/v10 v10.0.0/go.mod h1:ZfulV76NvVPw3tm591U4SwL3Xx9ldzBP9aGxzeN7G18=

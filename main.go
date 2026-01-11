@@ -44,7 +44,11 @@ func init() {
 		os.Exit(exitCodeConfigurationError)
 	}
 
-	ipqc, err = ipq.NewClient(config.IPQueryURL, config.IPQueryUser, config.IPQueryPassword, &config.Timeout)
+	ipqc, err = ipq.NewClient(
+		config.IPQueryURL,
+		ipq.WithBasicAuth(config.IPQueryUser, config.IPQueryPassword),
+		ipq.WithTimeout(config.Timeout),
+	)
 	if err != nil {
 		slog.Error(fmt.Sprintf("initializing ipquery client failed: %s", err.Error()))
 		os.Exit(exitCodeConfigurationError)
