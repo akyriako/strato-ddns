@@ -15,13 +15,14 @@ import (
 )
 
 type Config struct {
-	Debug           bool          `env:"DEBUG" envDefault:"false"`
+	LogLevel        int           `env:"LOG_LEVEL" envDefault:"0"`
 	Password        string        `env:"STRATO_PASSWORD,required"`
 	Domains         []string      `env:"DOMAINS,required" envSeparator:","`
 	IPQueryUser     string        `env:"IP_QUERY_USER,required"`
 	IPQueryPassword string        `env:"IP_QUERY_PASSWORD,required"`
 	IPQueryURL      string        `env:"IP_QUERY_URL,required"`
 	Timeout         time.Duration `env:"TIMEOUT" envDefault:"500"`
+	Interval        time.Duration `env:"INTERVAL" envDefault:"5m"`
 }
 
 const (
@@ -54,13 +55,8 @@ func init() {
 		os.Exit(exitCodeConfigurationError)
 	}
 
-	levelInfo := slog.LevelInfo
-	if config.Debug {
-		levelInfo = slog.LevelDebug
-	}
-
 	logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: levelInfo,
+		Level: slog.Level(config.LogLevel),
 	}))
 
 	slog.SetDefault(logger)
@@ -87,9 +83,8 @@ func main() {
 		status[domain] = ""
 	}
 
-	interval := time.Duration(5) * time.Minute
 	first := time.After(0)
-	ticker := time.NewTicker(interval)
+	ticker := time.NewTicker(config.Interval)
 	defer ticker.Stop()
 
 	sc = NewStratoDynDnsClient()
@@ -115,7 +110,7 @@ func updateRecordSets(ctx context.Context) {
 	}
 
 	if lastKnownIp == ip {
-		slog.Info("no change in ip address", "ip", ip, "provider", provider)
+		slog.Debug("no change in ip address", "ip", ip, "provider", provider)
 		return
 	}
 
